@@ -1,0 +1,1 @@
+hf download hfl/chinese-roberta-wwm-ext-large --local-dir ./chinese-roberta-wwm-ext-large --exclude "*.h5" --exclude "*.msgpack"

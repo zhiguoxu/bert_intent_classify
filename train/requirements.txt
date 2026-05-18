@@ -1,0 +1,6 @@
+datasets
+torch
+transformers[torch]
+tqdm
+scikit-learn
+requests
