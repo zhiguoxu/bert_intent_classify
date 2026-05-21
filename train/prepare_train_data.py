@@ -8,7 +8,7 @@ from pathlib import Path
 RAW_DATA_DIR = Path(__file__).parent / "data/raw"
 OUTPUT_CSV = Path(__file__).parent.parent / "output/train_data.csv"
 OUTPUT_LABEL_MAP = Path(__file__).parent.parent / "output/label_map.csv"
-MAX_SAMPLES_PER_CLASS = 50
+MAX_SAMPLES_PER_CLASS = 100
 
 
 def main():
@@ -45,6 +45,8 @@ def main():
             with open(fpath, "r", encoding="utf-8") as rf:
                 for line in rf:
                     text = line.strip()
+                    if text.endswith("。"):
+                        text = text[:-1]
                     if not text:
                         continue
                     writer.writerow([text, label_id])
@@ -89,5 +91,17 @@ def unique_sort(file_path: str):
     print(f"✅ {file_path}: 原始 {len(lines)} 行 → 去重排序后 {len(unique_lines)} 行")
 
 
+def uniform_raw():
+    category_files = sorted(RAW_DATA_DIR.glob("*.txt"))
+    print(RAW_DATA_DIR)
+
+    print("=" * 40)
+    print("执行语料去重与排序")
+    print("=" * 40)
+    for fpath in category_files:
+        unique_sort(str(fpath))
+
+
 if __name__ == "__main__":
+    # uniform_raw()
     main()

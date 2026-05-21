@@ -101,3 +101,96 @@ trainer = Trainer(
 if __name__ == '__main__':
     trainer.train()
     trainer.save_model()
+
+    report_lines = []
+    def log_and_print(msg):
+        print(msg)
+        report_lines.append(msg)
+
+    log_and_print("\n" + "="*50)
+    log_and_print("Evaluating validation set and analyzing worst cases...")
+    log_and_print("="*50)
+
+    import torch.nn.functional as F
+    import numpy as np
+    import csv
+
+    # 尝试加载 label_map.csv 映射表
+    label_map = {}
+    label_map_file = Path(__file__).parent / "label_map.csv"
+    if label_map_file.exists():
+        with open(label_map_file, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                label_map[int(row["label"])] = row["category"]
+
+    def get_label_name(lbl_id):
+        return label_map.get(lbl_id, str(lbl_id))
+
+    # 在验证集上进行预测
+    pred_output = trainer.predict(tokenized["validation"])
+    logits = torch.tensor(pred_output.predictions)
+    labels = torch.tensor(pred_output.label_ids)
+
+    # 计算每个样本的 cross entropy loss
+    losses = F.cross_entropy(logits, labels, reduction='none')
+
+    # 计算预测概率
+    probs = F.softmax(logits, dim=-1)
+    max_probs, preds = torch.max(probs, dim=-1)
+
+    losses = losses.numpy()
+    preds = preds.numpy()
+    max_probs = max_probs.numpy()
+    labels = labels.numpy()
+
+    # 按照 loss 降序排列
+    sorted_indices = np.argsort(-losses)
+
+    top_10_indices = sorted_indices[:10]
+    top_10_set = set(top_10_indices)
+
+    val_raw_data = raw_datasets["validation"]
+
+    log_and_print("\n--- Loss 最大的前 10 个数据 ---")
+    for i, idx in enumerate(top_10_indices):
+        if idx >= len(val_raw_data): continue
+        text = val_raw_data[int(idx)]["text"]
+        true_lbl = labels[idx]
+        pred_lbl = preds[idx]
+        prob = max_probs[idx]
+        loss = losses[idx]
+
+        true_name = get_label_name(true_lbl)
+        pred_name = get_label_name(pred_lbl)
+        match_str = "✅" if true_lbl == pred_lbl else "❌"
+
+        log_and_print(f"[{i+1}] Loss: {loss:.4f} | 真实 Label: {true_name} | 预测 Label: {pred_name} | 预测概率: {prob:.4f} {match_str}")
+        log_and_print(f"文本: {text}\n")
+
+    log_and_print("\n--- 其他预测不一致的数据 (不在 Loss 前 10 名中) ---")
+    misclassified_indices = np.where(preds != labels)[0]
+    other_misclassified = [idx for idx in misclassified_indices if idx not in top_10_set]
+
+    if len(other_misclassified) == 0:
+        log_and_print("无。")
+    else:
+        for idx in other_misclassified:
+            if idx >= len(val_raw_data): continue
+            text = val_raw_data[int(idx)]["text"]
+            true_lbl = labels[idx]
+            pred_lbl = preds[idx]
+            prob = max_probs[idx]
+            loss = losses[idx]
+
+            true_name = get_label_name(true_lbl)
+            pred_name = get_label_name(pred_lbl)
+
+            log_and_print(f"Loss: {loss:.4f} | 真实 Label: {true_name} | 预测 Label: {pred_name} | 预测概率: {prob:.4f} ❌")
+            log_and_print(f"文本: {text}\n")
+
+    report_file = output_dir / "valid_report.txt"
+    with open(report_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(report_lines))
+    print(f"\n验证报告已保存至: {report_file}")
+
