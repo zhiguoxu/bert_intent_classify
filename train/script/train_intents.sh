@@ -8,7 +8,7 @@ DATASET=intents
 LOG="$(pwd)/output/$DATASET/train_intents.log"
 mkdir -p "$(dirname "$LOG")"
 
-nohup conda run -n intent_classify --no-capture-output \
+nohup conda run -n bert_classify --no-capture-output \
   python train/train.py "$DATASET" > "$LOG" 2>&1 &
 
 echo "日志输出到: $LOG"
