@@ -1,4 +1,7 @@
 import os
+import sys
+import csv
+import shutil
 from pathlib import Path
 
 cuda_id = 3
@@ -22,10 +25,25 @@ from transformers import (
 from datasets import load_dataset
 
 seed = 42
-model_name_or_path = Path(__file__).parent.parent / "models/chinese-roberta-wwm-ext-large"
-output_dir = Path(__file__).parent.parent / f"output/intent_classify_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+# ============ 数据集 / 任务 ============
+# 不同分类任务使用不同 dataset 名称，训练数据与模型产物按名称隔离：
+#   原始语料:   train/data/<dataset>/*.txt
+#   预处理产物: output/<dataset>/{train_data.csv, label_map.csv}
+#   模型产物:   output/<dataset>/model_<时间戳>/
+# 用法: python train/train.py [dataset]   (默认 "raw"，对应现有 train/data/raw)
+dataset = sys.argv[1] if len(sys.argv) > 1 else "raw"
+
+PROJECT_ROOT = Path(__file__).parent.parent
+DATASET_DIR = PROJECT_ROOT / "output" / dataset
+
+model_name_or_path = PROJECT_ROOT / "models/chinese-roberta-wwm-ext-large"
+output_dir = DATASET_DIR / f"model_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+train_file = str(DATASET_DIR / "train_data.csv")
+valid_file = str(DATASET_DIR / "train_data.csv")
+label_map_file = DATASET_DIR / "label_map.csv"
+
 max_length = 512
-num_labels = 20
 lr = 2e-5
 batch_size = 16
 eval_batch_size = 16
@@ -35,8 +53,27 @@ device = torch.device(f"cuda:{cuda_id}" if torch.cuda.is_available() else "cpu")
 
 set_seed(seed)
 
-train_file = str(Path(__file__).parent.parent / "output/train_data.csv")
-valid_file = str(Path(__file__).parent.parent / "output/train_data.csv")
+
+def load_label_map(path):
+    """从 label_map.csv 读取 {label_id: category} 映射"""
+    m = {}
+    with open(path, "r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            m[int(row["label"])] = row["category"]
+    return m
+
+
+# 类别数量与 id<->name 映射均由该数据集的 label_map 决定，
+# 避免硬编码 num_labels 与不同任务错配
+if not label_map_file.exists():
+    raise FileNotFoundError(
+        f"未找到 {label_map_file}，请先运行: python train/prepare_train_data.py {dataset}"
+    )
+id2label = load_label_map(label_map_file)
+label2id = {name: idx for idx, name in id2label.items()}
+num_labels = len(id2label)
+print(f"[dataset={dataset}] num_labels={num_labels} | 产物目录: {DATASET_DIR}")
+
 raw_datasets = load_dataset("csv", data_files={"train": train_file, "validation": valid_file})
 
 tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
@@ -55,7 +92,10 @@ tokenized = raw_datasets.map(
 )
 
 model = AutoModelForSequenceClassification.from_pretrained(
-    model_name_or_path, num_labels=num_labels
+    model_name_or_path,
+    num_labels=num_labels,
+    id2label=id2label,
+    label2id=label2id,
 )
 
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
@@ -101,6 +141,9 @@ trainer = Trainer(
 if __name__ == '__main__':
     trainer.train()
     trainer.save_model()
+    # 把该数据集的 label_map 一并存入模型目录：模型自带标签映射，
+    # 部署时随模型一起拷贝到 infer/，两边隔离且永不错配
+    shutil.copy(label_map_file, output_dir / "label_map.csv")
 
     report_lines = []
     def log_and_print(msg):
@@ -113,21 +156,10 @@ if __name__ == '__main__':
 
     import torch.nn.functional as F
     import numpy as np
-    import csv
 
-    # 尝试加载 label_map.csv 映射表
-    label_map = {}
-    label_map_file = Path(__file__).parent.parent / "output/label_map.csv"
-    if label_map_file.exists():
-        with open(label_map_file, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                label_map[int(row["label"])] = row["category"]
-    else:
-        log_and_print("Label map file not found.")
-
+    # 复用模块加载好的映射表（已由 dataset 的 label_map.csv 得到）
     def get_label_name(lbl_id):
-        return label_map.get(lbl_id, str(lbl_id))
+        return id2label.get(int(lbl_id), str(lbl_id))
 
     # 在验证集上进行预测
     pred_output = trainer.predict(tokenized["validation"])

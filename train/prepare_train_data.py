@@ -3,15 +3,25 @@
 取每个文件前50条数据，生成 CSV 训练文件 (text, label)。
 """
 import csv
+import sys
 from pathlib import Path
 
-RAW_DATA_DIR = Path(__file__).parent / "data/raw"
-OUTPUT_CSV = Path(__file__).parent.parent / "output/train_data.csv"
-OUTPUT_LABEL_MAP = Path(__file__).parent.parent / "output/label_map.csv"
+# 数据集名称：不同分类任务用不同名称，语料与产物按名称隔离。
+# 用法: python train/prepare_train_data.py [dataset]   (默认 "raw")
+DATASET = sys.argv[1] if len(sys.argv) > 1 else "raw"
+
+RAW_DATA_DIR = Path(__file__).parent / "data" / DATASET
+OUTPUT_DIR = Path(__file__).parent.parent / "output" / DATASET
+OUTPUT_CSV = OUTPUT_DIR / "train_data.csv"
+OUTPUT_LABEL_MAP = OUTPUT_DIR / "label_map.csv"
 MAX_SAMPLES_PER_CLASS = 100
 
 
 def main():
+    if not RAW_DATA_DIR.is_dir():
+        raise FileNotFoundError(f"原始语料目录不存在: {RAW_DATA_DIR}")
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
     # 收集所有类别文件并排序，确保编号稳定
     category_files = sorted(RAW_DATA_DIR.glob("*.txt"))
     print(RAW_DATA_DIR)
