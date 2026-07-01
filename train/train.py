@@ -47,7 +47,7 @@ max_length = 512
 lr = 2e-5
 batch_size = 16
 eval_batch_size = 16
-epochs = 1
+epochs = 12
 fp16 = True
 device = torch.device(f"cuda:{cuda_id}" if torch.cuda.is_available() else "cpu")
 
