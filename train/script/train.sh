@@ -1,1 +1,0 @@
-nohup /home/zhiguo/miniconda3/condabin/conda run -n intent_classify --no-capture-output python train/train.py > "train.log" 2>&1 &
