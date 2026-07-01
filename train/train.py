@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-cuda_id = 7
+cuda_id = 3
 # 只使用第一个 GPU (索引为 0)
 os.environ["CUDA_VISIBLE_DEVICES"] = f"{cuda_id}"
 
@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
     # 尝试加载 label_map.csv 映射表
     label_map = {}
-    label_map_file = Path(__file__).parent / "label_map.csv"
+    label_map_file = Path(__file__).parent.parent / "output/label_map.csv"
     if label_map_file.exists():
         with open(label_map_file, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
