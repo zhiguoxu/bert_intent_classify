@@ -31,8 +31,8 @@ seed = 42
 #   原始语料:   train/data/<dataset>/*.txt
 #   预处理产物: output/<dataset>/{train_data.csv, label_map.csv}
 #   模型产物:   output/<dataset>/model_<时间戳>/
-# 用法: python train/train.py [dataset]   (默认 "raw"，对应现有 train/data/raw)
-dataset = sys.argv[1] if len(sys.argv) > 1 else "raw"
+# 用法: python train/train.py [dataset]   (默认 "intents"，对应 train/data/intents)
+dataset = sys.argv[1] if len(sys.argv) > 1 else "intents"
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DATASET_DIR = PROJECT_ROOT / "output" / dataset

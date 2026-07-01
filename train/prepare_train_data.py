@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 # 数据集名称：不同分类任务用不同名称，语料与产物按名称隔离。
-# 用法: python train/prepare_train_data.py [dataset]   (默认 "raw")
-DATASET = sys.argv[1] if len(sys.argv) > 1 else "raw"
+# 用法: python train/prepare_train_data.py [dataset]   (默认 "intents")
+DATASET = sys.argv[1] if len(sys.argv) > 1 else "intents"
 
 RAW_DATA_DIR = Path(__file__).parent / "data" / DATASET
 OUTPUT_DIR = Path(__file__).parent.parent / "output" / DATASET
