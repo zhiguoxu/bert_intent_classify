@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import List
 from contextlib import asynccontextmanager
 import numpy as np
@@ -26,7 +27,10 @@ async def lifespan(app: FastAPI):
     """
     管理服务生命周期，确保模型在服务启动时仅加载一次
     """
-    model_dir = "../models/bert_onnx"
+    # 模型目录：可用环境变量 MODEL_DIR 指定不同数据集的模型（如 models/intents_onnx）。
+    # 相对路径以项目根目录为基准，与启动时的 cwd 无关。
+    project_root = Path(__file__).resolve().parent.parent
+    model_dir = str(project_root / os.environ.get("MODEL_DIR", "models/bert_onnx"))
     model_path = os.path.join(model_dir, "model.onnx")
 
     if not os.path.exists(model_path):
