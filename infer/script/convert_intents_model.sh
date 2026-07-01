@@ -1,5 +1,7 @@
-# 将 intents 数据集训练出的最新模型导出为 ONNX
-# 用法（在项目根目录执行）: bash infer/script/convert_intents_model.sh
+#!/usr/bin/env bash
+# 将 intents 数据集训练出的最新模型导出为 ONNX（任何目录下均可执行）
+# 切到项目根目录，保证下面的相对路径正确
+cd "$(dirname "$0")/../.." || exit 1
 set -e
 
 DATASET=intents
@@ -15,7 +17,7 @@ ONNX_DIR=models/${DATASET}_onnx
 echo "导出模型: $MODEL_DIR -> $ONNX_DIR"
 
 rm -rf "$ONNX_DIR"
-conda run -n bert_intent_classify --no-capture-output \
+/home/zhiguo/miniconda3/bin/conda run -n bert_intent_classify --no-capture-output \
   optimum-cli export onnx \
     --model "$MODEL_DIR" \
     --optimize O3 \
