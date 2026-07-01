@@ -17,7 +17,7 @@ ONNX_DIR=models/${DATASET}_onnx
 echo "导出模型: $MODEL_DIR -> $ONNX_DIR"
 
 rm -rf "$ONNX_DIR"
-/home/zhiguo/miniconda3/bin/conda run -n bert_intent_classify --no-capture-output \
+conda run -n bert_classify --no-capture-output \
   optimum-cli export onnx \
     --model "$MODEL_DIR" \
     --optimize O3 \
