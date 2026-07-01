@@ -10,7 +10,7 @@ DATASET=intents
 LOG="$(pwd)/output/$DATASET/serve_intents.log"
 mkdir -p "$(dirname "$LOG")"
 
-MODEL_DIR=models/${DATASET}_onnx nohup /home/zhiguo/miniconda3/bin/conda run -n bert_intent_classify --no-capture-output \
+MODEL_DIR=models/${DATASET}_onnx nohup conda run -n intent_classify --no-capture-output \
   uvicorn infer:app --app-dir infer --host 0.0.0.0 --port 10001 --workers 4 \
   > "$LOG" 2>&1 &
 
