@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-cuda_id = 7
+cuda_id = 3
 # 只使用第一个 GPU (索引为 0)
 os.environ["CUDA_VISIBLE_DEVICES"] = f"{cuda_id}"
 
@@ -29,7 +29,7 @@ num_labels = 20
 lr = 2e-5
 batch_size = 16
 eval_batch_size = 16
-epochs = 12
+epochs = 1
 fp16 = True
 device = torch.device(f"cuda:{cuda_id}" if torch.cuda.is_available() else "cpu")
 
@@ -123,6 +123,8 @@ if __name__ == '__main__':
             reader = csv.DictReader(f)
             for row in reader:
                 label_map[int(row["label"])] = row["category"]
+    else:
+        log_and_print("Label map file not found.")
 
     def get_label_name(lbl_id):
         return label_map.get(lbl_id, str(lbl_id))
