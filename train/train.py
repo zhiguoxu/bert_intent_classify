@@ -100,6 +100,29 @@ model = AutoModelForSequenceClassification.from_pretrained(
 
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
+# 类别样本数不均衡（如 navigate 210 条 vs 多数类 ~50 条）时，
+# 按频率倒数加权交叉熵: weight_c = N / (K * n_c)，避免多数类主导梯度
+from collections import Counter
+import torch.nn.functional as F
+
+label_counts = Counter(raw_datasets["train"]["label"])
+total = sum(label_counts.values())
+class_weights = torch.tensor(
+    [total / (num_labels * label_counts[i]) for i in range(num_labels)],
+    dtype=torch.float,
+)
+print(f"类别权重: { {id2label[i]: round(float(w), 3) for i, w in enumerate(class_weights)} }")
+
+
+class WeightedTrainer(Trainer):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        loss = F.cross_entropy(
+            outputs.logits, labels, weight=class_weights.to(outputs.logits.device)
+        )
+        return (loss, outputs) if return_outputs else loss
+
 training_args = TrainingArguments(
     output_dir=output_dir,
     eval_strategy="epoch",
@@ -111,8 +134,8 @@ training_args = TrainingArguments(
     weight_decay=0.01,
     logging_steps=50,
     load_best_model_at_end=True,
-    metric_for_best_model="f1",
-    greater_is_better=True,
+    metric_for_best_model="loss",
+    greater_is_better=False,
     fp16=False,
     bf16=False,
     save_total_limit=3,
@@ -128,7 +151,7 @@ def compute_metrics(pred):
     return {"accuracy": acc, "f1": f1}
 
 
-trainer = Trainer(
+trainer = WeightedTrainer(
     model=model,
     args=training_args,
     train_dataset=tokenized["train"],
@@ -145,86 +168,8 @@ if __name__ == '__main__':
     # 部署时随模型一起拷贝到 infer/，两边隔离且永不错配
     shutil.copy(label_map_file, output_dir / "label_map.csv")
 
-    report_lines = []
-    def log_and_print(msg):
-        print(msg)
-        report_lines.append(msg)
-
-    log_and_print("\n" + "="*50)
-    log_and_print("Evaluating validation set and analyzing worst cases...")
-    log_and_print("="*50)
-
-    import torch.nn.functional as F
-    import numpy as np
-
-    # 复用模块加载好的映射表（已由 dataset 的 label_map.csv 得到）
-    def get_label_name(lbl_id):
-        return id2label.get(int(lbl_id), str(lbl_id))
-
-    # 在验证集上进行预测
-    pred_output = trainer.predict(tokenized["validation"])
-    logits = torch.tensor(pred_output.predictions)
-    labels = torch.tensor(pred_output.label_ids)
-
-    # 计算每个样本的 cross entropy loss
-    losses = F.cross_entropy(logits, labels, reduction='none')
-
-    # 计算预测概率
-    probs = F.softmax(logits, dim=-1)
-    max_probs, preds = torch.max(probs, dim=-1)
-
-    losses = losses.numpy()
-    preds = preds.numpy()
-    max_probs = max_probs.numpy()
-    labels = labels.numpy()
-
-    # 按照 loss 降序排列
-    sorted_indices = np.argsort(-losses)
-
-    top_10_indices = sorted_indices[:10]
-    top_10_set = set(top_10_indices)
-
-    val_raw_data = raw_datasets["validation"]
-
-    log_and_print("\n--- Loss 最大的前 10 个数据 ---")
-    for i, idx in enumerate(top_10_indices):
-        if idx >= len(val_raw_data): continue
-        text = val_raw_data[int(idx)]["text"]
-        true_lbl = labels[idx]
-        pred_lbl = preds[idx]
-        prob = max_probs[idx]
-        loss = losses[idx]
-
-        true_name = get_label_name(true_lbl)
-        pred_name = get_label_name(pred_lbl)
-        match_str = "✅" if true_lbl == pred_lbl else "❌"
-
-        log_and_print(f"[{i+1}] Loss: {loss:.4f} | 真实 Label: {true_name} | 预测 Label: {pred_name} | 预测概率: {prob:.4f} {match_str}")
-        log_and_print(f"文本: {text}\n")
-
-    log_and_print("\n--- 其他预测不一致的数据 (不在 Loss 前 10 名中) ---")
-    misclassified_indices = np.where(preds != labels)[0]
-    other_misclassified = [idx for idx in misclassified_indices if idx not in top_10_set]
-
-    if len(other_misclassified) == 0:
-        log_and_print("无。")
-    else:
-        for idx in other_misclassified:
-            if idx >= len(val_raw_data): continue
-            text = val_raw_data[int(idx)]["text"]
-            true_lbl = labels[idx]
-            pred_lbl = preds[idx]
-            prob = max_probs[idx]
-            loss = losses[idx]
-
-            true_name = get_label_name(true_lbl)
-            pred_name = get_label_name(pred_lbl)
-
-            log_and_print(f"Loss: {loss:.4f} | 真实 Label: {true_name} | 预测 Label: {pred_name} | 预测概率: {prob:.4f} ❌")
-            log_and_print(f"文本: {text}\n")
-
-    report_file = output_dir / "valid_report.txt"
-    with open(report_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(report_lines))
-    print(f"\n验证报告已保存至: {report_file}")
+    # 评测报告统一由 eval_report 生成：整体 eval_loss/accuracy/f1 +
+    # loss 最大的前 TOP_K 条样本概率 + 逐样本明细 eval_details.csv，便于跨版本对比
+    from eval_report import evaluate_and_report
+    evaluate_and_report(output_dir, dataset)
 

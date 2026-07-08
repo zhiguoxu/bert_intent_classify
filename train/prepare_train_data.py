@@ -14,7 +14,7 @@ RAW_DATA_DIR = Path(__file__).parent / "data" / DATASET
 OUTPUT_DIR = Path(__file__).parent.parent / "output" / DATASET
 OUTPUT_CSV = OUTPUT_DIR / "train_data.csv"
 OUTPUT_LABEL_MAP = OUTPUT_DIR / "label_map.csv"
-MAX_SAMPLES_PER_CLASS = 100
+MAX_SAMPLES_PER_CLASS = 250
 
 
 def main():
