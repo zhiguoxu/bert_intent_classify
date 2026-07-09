@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import logging
 import time
@@ -34,6 +35,10 @@ import httpx
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# 保活 ping 间隔(秒)。必须小于服务端 uvicorn 的 timeout_keep_alive(serve_intents.sh 中 300s),
+# 否则闲置连接仍会被服务端回收, 下一轮对话就得付 TCP 握手的冷启动代价。
+_KEEPALIVE_INTERVAL = 60.0
 
 
 # ──────────────────────────────────────────────
@@ -126,6 +131,7 @@ class BertIntentClassifyClient:
         self._base_url = base_url.rstrip("/")
         self._config = config or ClientConfig()
         self._client: Optional[httpx.AsyncClient] = None
+        self._keepalive_task: Optional[asyncio.Task] = None
         self._label_map: Dict[int, str] = self._load_label_map(label_map_path)
         logger.info("已加载 %d 个类别映射: %s", len(self._label_map), self._label_map)
 
@@ -182,9 +188,27 @@ class BertIntentClassifyClient:
         )
 
     async def connect(self) -> "BertIntentClassifyClient":
-        """显式初始化底层连接池（不使用 async with 时调用此方法）"""
+        """显式初始化底层连接池, 预热连接并周期 ping 保活（不使用 async with 时调用此方法）
+
+        意图分类在首字延迟的关键路径上, 首轮对话不该付 TCP 冷启动的代价;
+        ping 打最轻的 /health, 闲时维持热连接, 忙时流量本身就能保活。全程 best-effort。
+        """
         self._client = self._build_client()
+        await self._ping()
+        if self._keepalive_task is None:
+            self._keepalive_task = asyncio.create_task(self._keepalive_loop())
         return self
+
+    async def _ping(self) -> None:
+        try:
+            await self.client.get("/health")
+        except Exception as e:
+            logger.warning("BERT intent 连接保活 ping 失败(不影响主链路): %s", e)
+
+    async def _keepalive_loop(self) -> None:
+        while True:
+            await asyncio.sleep(_KEEPALIVE_INTERVAL)
+            await self._ping()
 
     async def __aenter__(self) -> "BertIntentClassifyClient":
         return await self.connect()
@@ -194,6 +218,11 @@ class BertIntentClassifyClient:
 
     async def close(self) -> None:
         """显式关闭底层连接池"""
+        if self._keepalive_task is not None:
+            self._keepalive_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._keepalive_task
+            self._keepalive_task = None
         if self._client:
             await self._client.aclose()
             self._client = None
