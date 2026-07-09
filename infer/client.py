@@ -170,6 +170,9 @@ class BertIntentClassifyClient:
         limits = httpx.Limits(
             max_connections=self._config.max_connections,
             max_keepalive_connections=self._config.max_keepalive_connections,
+            # 客户端不设闲置过期(httpx 默认 5s, 调用轮距几乎总超 5s, 等于每次重付
+            # TCP 握手), 连接回收交给服务端(serve_intents.sh 的 --timeout-keep-alive)。
+            keepalive_expiry=None,
         )
         return httpx.AsyncClient(
             base_url=self._base_url,
@@ -390,7 +393,7 @@ async def _demo():
         read_timeout=10.0,
         max_retries=2,
     )
-    async with BertIntentClassifyClient("http://localhost:10001", "label_map.csv", config) as client:
+    async with BertIntentClassifyClient("http://localhost:10002", "label_map.csv", config) as client:
         # 0. 查看加载的类别映射
         print(f"📋 类别映射: {client.label_map}")
 

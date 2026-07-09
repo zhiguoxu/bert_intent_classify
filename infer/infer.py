@@ -109,8 +109,9 @@ async def health_check():
 
 
 """
+端口约定: 10002 = 测试/最新模型; 10001 = 专供外部调用方的稳定版。
 curl -X 'POST' \
-  'http://8.145.38.125:10001/predict' \
+  'http://127.0.0.1:10002/predict' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
