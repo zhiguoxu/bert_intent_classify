@@ -4,8 +4,9 @@ import csv
 import shutil
 from pathlib import Path
 
-cuda_id = 3
-# 只使用第一个 GPU (索引为 0)
+# 用哪张卡由 CUDA_ID 环境变量指定(训练机各卡占用波动大, 开训前先 nvidia-smi 挑空卡),
+# 例: CUDA_ID=1 bash train/script/train_intents.sh
+cuda_id = int(os.environ.get("CUDA_ID", "3"))
 os.environ["CUDA_VISIBLE_DEVICES"] = f"{cuda_id}"
 
 from datetime import datetime
@@ -49,7 +50,8 @@ batch_size = 16
 eval_batch_size = 16
 epochs = 12
 fp16 = True
-device = torch.device(f"cuda:{cuda_id}" if torch.cuda.is_available() else "cpu")
+# CUDA_VISIBLE_DEVICES 已把选中的卡映射为唯一可见设备, torch 侧永远是 cuda:0
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 set_seed(seed)
 

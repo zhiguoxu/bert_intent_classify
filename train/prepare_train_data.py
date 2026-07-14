@@ -62,10 +62,9 @@ def main():
                     writer.writerow([text, label_id])
                     count += 1
                     total_samples += 1
-                    if category_name == "other":
-                        if count >= 200:
-                            break
-                    elif count >= MAX_SAMPLES_PER_CLASS:
+                    # other 是 21 类动作意图的兜底类, 要覆盖闲聊+各式界外祈使句,
+                    # 语料全量入库不截断; 其余动作类仍按 MAX_SAMPLES_PER_CLASS 封顶。
+                    if category_name != "other" and count >= MAX_SAMPLES_PER_CLASS:
                         break
 
             print(f"  类别 [{category_name}] (label={label_id}): 取 {count} 条")
