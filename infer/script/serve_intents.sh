@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # 启动 intents 模型的推理服务（任何目录下均可执行）
 #
-# 端口约定（2026-07-09 起，训练机 / GPU 服务机通用）：
-#   10001 —— 专供外部调用方，跑稳定版模型 models/intents_onnx_20260701（20 类，无 navigate）
-#   10002 —— 测试 / 最新模型，跑 models/intents_onnx（21 类），新训练的模型一律先部署到这里
+# 端口约定（2026-07-15 起，训练机 / GPU 服务机通用），两端口严格隔离：
+#   10001 —— 专供外部调用方，钉死带日期的模型快照目录（现为 models/intents_onnx_20260714，21 类），
+#            后续重训/更新 10002 不影响它；要给 10001 换模型，先 cp 新快照再改启动参数
+#   10002 —— 供 agent_server，跑 models/intents_onnx（每次重训覆盖这里），新模型一律先上这里验证
 #
 # 用法：
 #   bash serve_intents.sh                # 默认：端口 10002 + models/intents_onnx（最新模型）
-#   PORT=10001 MODEL_DIR=models/intents_onnx_20260701 bash serve_intents.sh
-#                                        # 外部调用方那份（稳定版）
+#   PORT=10001 MODEL_DIR=models/intents_onnx_20260714 bash serve_intents.sh
+#                                        # 外部调用方那份（钉死快照）
 #
 # 切到项目根目录，保证下面的相对路径正确
 cd "$(dirname "$0")/../.." || exit 1

@@ -109,7 +109,7 @@ async def health_check():
 
 
 """
-端口约定: 10002 = 测试/最新模型; 10001 = 专供外部调用方的稳定版。
+端口约定: 10002 = 供 agent_server(最新模型, 重训覆盖); 10001 = 专供外部调用方(钉死快照, 与 10002 隔离)。
 curl -X 'POST' \
   'http://127.0.0.1:10002/predict' \
   -H 'accept: application/json' \
