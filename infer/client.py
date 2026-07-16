@@ -193,7 +193,8 @@ class BertIntentClassifyClient:
         意图分类在首字延迟的关键路径上, 首轮对话不该付 TCP 冷启动的代价;
         ping 打最轻的 /health, 闲时维持热连接, 忙时流量本身就能保活。全程 best-effort。
         """
-        self._client = self._build_client()
+        if self._client is None:  # 幂等: 已初始化(含 client 属性惰性建出)时不重建连接池
+            self._client = self._build_client()
         await self._ping()
         if self._keepalive_task is None:
             self._keepalive_task = asyncio.create_task(self._keepalive_loop())
@@ -230,10 +231,11 @@ class BertIntentClassifyClient:
     @property
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
-            raise BertClientError(
-                "客户端未初始化。请使用 'async with BertIntentClassifyClient(...) as client:' "
-                "或手动调用 'await client.connect()'"
-            )
+            # 惰性初始化: 首次使用时建连接池并启动保活。同步工厂(如 shared_bert_client)
+            # 拿到实例即可直接用; connect() 仍保留给启动期显式预热。
+            self._client = self._build_client()
+            if self._keepalive_task is None:
+                self._keepalive_task = asyncio.create_task(self._keepalive_loop())
         return self._client
 
     # ── 内部工具 ──────────────────────────────
