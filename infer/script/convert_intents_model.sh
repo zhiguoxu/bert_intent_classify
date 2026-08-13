@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# 将 intents 数据集训练出的最新模型导出为 ONNX（任何目录下均可执行）
+# 将指定数据集训练出的最新模型导出为 ONNX（任何目录下均可执行）
+# 用法:
+#   bash convert_intents_model.sh                # 默认 intents -> models/intents_onnx
+#   bash convert_intents_model.sh vision_gate    # -> models/vision_gate_onnx
 # 切到项目根目录，保证下面的相对路径正确
 cd "$(dirname "$0")/../.." || exit 1
 set -e
 
-DATASET=intents
+DATASET="${1:-intents}"
 
 # 自动选取 output/<dataset>/ 下最新的一个训练产物目录
 MODEL_DIR=$(ls -dt output/${DATASET}/model_* 2>/dev/null | head -1)

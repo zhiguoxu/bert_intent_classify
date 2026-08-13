@@ -1,20 +1,23 @@
 """
 从 raw_data 目录读取每个类别文件，为每个类别编号，
-取每个文件前50条数据，生成 CSV 训练文件 (text, label)。
+按数据集配置截断每类条数，生成 CSV 训练文件 (text, label)。
 """
 import csv
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from dataset_configs import get_dataset_config
+
 # 数据集名称：不同分类任务用不同名称，语料与产物按名称隔离。
 # 用法: python train/prepare_train_data.py [dataset]   (默认 "intents")
 DATASET = sys.argv[1] if len(sys.argv) > 1 else "intents"
+CFG = get_dataset_config(DATASET)
 
 RAW_DATA_DIR = Path(__file__).parent / "data" / DATASET
 OUTPUT_DIR = Path(__file__).parent.parent / "output" / DATASET
 OUTPUT_CSV = OUTPUT_DIR / "train_data.csv"
 OUTPUT_LABEL_MAP = OUTPUT_DIR / "label_map.csv"
-MAX_SAMPLES_PER_CLASS = 250
 
 
 def main():
@@ -52,6 +55,12 @@ def main():
             label_id = label_map[category_name]
             count = 0
 
+            # 封顶策略由数据集配置决定: max_samples_per_class=None 表示全量入库;
+            # uncapped_classes(如 intents 的 other 兜底类)不受封顶限制。
+            cap = None
+            if CFG.max_samples_per_class and category_name not in CFG.uncapped_classes:
+                cap = CFG.max_samples_per_class
+
             with open(fpath, "r", encoding="utf-8") as rf:
                 for line in rf:
                     text = line.strip()
@@ -62,9 +71,7 @@ def main():
                     writer.writerow([text, label_id])
                     count += 1
                     total_samples += 1
-                    # other 是 21 类动作意图的兜底类, 要覆盖闲聊+各式界外祈使句,
-                    # 语料全量入库不截断; 其余动作类仍按 MAX_SAMPLES_PER_CLASS 封顶。
-                    if category_name != "other" and count >= MAX_SAMPLES_PER_CLASS:
+                    if cap is not None and count >= cap:
                         break
 
             print(f"  类别 [{category_name}] (label={label_id}): 取 {count} 条")

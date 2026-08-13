@@ -32,26 +32,35 @@ seed = 42
 #   原始语料:   train/data/<dataset>/*.txt
 #   预处理产物: output/<dataset>/{train_data.csv, label_map.csv}
 #   模型产物:   output/<dataset>/model_<时间戳>/
+# 基座模型与超参由 train/dataset_configs.py 按数据集配置(未登记的用历史默认值)。
 # 用法: python train/train.py [dataset]   (默认 "intents"，对应 train/data/intents)
 dataset = sys.argv[1] if len(sys.argv) > 1 else "intents"
+
+sys.path.insert(0, str(Path(__file__).parent))
+from dataset_configs import get_dataset_config
+
+cfg = get_dataset_config(dataset)
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DATASET_DIR = PROJECT_ROOT / "output" / dataset
 
-model_name_or_path = PROJECT_ROOT / "models/chinese-roberta-wwm-ext-large"
+# base_model 支持绝对路径或相对工程根的路径
+_base = Path(cfg.base_model)
+model_name_or_path = _base if _base.is_absolute() else PROJECT_ROOT / _base
 output_dir = DATASET_DIR / f"model_{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 train_file = str(DATASET_DIR / "train_data.csv")
 valid_file = str(DATASET_DIR / "train_data.csv")
 label_map_file = DATASET_DIR / "label_map.csv"
 
-max_length = 512
-lr = 2e-5
-batch_size = 16
-eval_batch_size = 16
-epochs = 12
-fp16 = True
+max_length = cfg.max_length
+lr = cfg.lr
+batch_size = cfg.batch_size
+eval_batch_size = cfg.eval_batch_size
+epochs = cfg.epochs
 # CUDA_VISIBLE_DEVICES 已把选中的卡映射为唯一可见设备, torch 侧永远是 cuda:0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"[dataset={dataset}] 基座={model_name_or_path} lr={lr} epochs={epochs} "
+      f"batch={batch_size} max_length={max_length} | {cfg.description}")
 
 set_seed(seed)
 
