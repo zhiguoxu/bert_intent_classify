@@ -8,6 +8,7 @@
 #            新模型一律先上这里验证
 #   10004 —— vision_gate 视觉门控（部署在 person_id 感知服务机上，跑 models/vision_gate_onnx），
 #            供 agent_server 判断"本轮是否要带摄像头画面给 LLM"
+#   10014 —— vision_gate 测试实例（同机独立目录 bert_intent_classify_test, deploy_mac.sh gate_test）
 #
 # 用法：
 #   bash serve_intents.sh                          # 默认：intents + 端口 10002
