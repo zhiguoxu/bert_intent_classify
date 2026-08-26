@@ -32,7 +32,14 @@ bash infer/script/serve_vision_gate.sh        # = serve_intents.sh vision_gate 1
 ## vision_gate 部署(person_id 感知服务机, 端口 10004)
 
 vision_gate 的语料源头与选型实验在 `voice_agent/test/vision_gate/`(REPORT.md 有
-完整评测: bert-base fp32 家庭人群专项集 98.1%、漏视觉 0%、CPU 单条 p50 16~19ms)。
+完整评测: bert-base fp32, v4 家庭人群专项集 98.75%、上下文专项集 96.7%,
+漏视觉均 0%)。
+
+v4 起输入支持双句格式(本轮 query + 上一轮对话, 做"他能长多高"类代词的指代
+消解), 拼接格式的唯一事实源是
+`voice_agent/agent_server/agent/vision_gate/context_format.py`; agent 侧由
+`vision_gate.use_context` 开关控制是否发双句——**必须先部署 v4 及以后的模型
+再开开关**, 旧模型没见过双句分布。
 
 首次部署步骤(在 person_id 服务机上):
 
@@ -42,13 +49,13 @@ vision_gate 的语料源头与选型实验在 `voice_agent/test/vision_gate/`(RE
 #    (GPU 机装 onnxruntime-gpu, infer.py 会自动优先用 CUDAExecutionProvider)
 # 3. 模型就位, 二选一:
 #    a) 现场重训: 上面的全流程命令 0~3
-#    b) 直接拷实验产物: voice_agent/test/vision_gate/results/ft_bert-base__v3/
-#       整目录(model.onnx + tokenizer + label_map 需补拷)到 models/vision_gate_onnx/
-# 4. 起服务并验证
+#    b) 直接同步训练机上的流水线产物 models/vision_gate_onnx/ 整目录
+# 4. 起服务并验证(单轮与双句格式各一条)
 bash infer/script/serve_vision_gate.sh
 curl -X POST http://127.0.0.1:10004/predict -H 'Content-Type: application/json' \
-  -d '{"texts": ["看看这是什么", "明天天气怎么样"]}'
+  -d '{"texts": ["看看这是什么", "明天天气怎么样", "本轮:他能长多高？ 上轮问:长颈鹿的食物 上轮答:长颈鹿爱吃金合欢叶。"]}'
 # 返回 logits, argmax: 0=no_vision 1=vision(见 models/vision_gate_onnx/label_map.csv)
+# 期望: vision / no_vision / no_vision
 ```
 
 训完质检(只测不训的三套评测集, 在 voice_agent 仓库):

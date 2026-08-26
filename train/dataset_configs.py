@@ -45,7 +45,10 @@ DATASET_CONFIGS: dict[str, DatasetConfig] = {
         lr=2e-5,
         epochs=8,
         batch_size=32,
-        max_length=64,          # 口语 query 很短, 64 够用且推理更快
+        # 带上文的双句样本(本轮+上轮问答, 指代消解方向)约 130 字符,
+        # 与 agent_server/agent/vision_gate/context_format.py 的
+        # GATE_MAX_LENGTH 对齐; 单轮短句照常, padding 不影响精度
+        max_length=160,
         max_samples_per_class=None,   # 二分类语料已人工配平, 不截断
         uncapped_classes=(),
         description="视觉门控二分类(部署: person_id 服务机 10004 端口)",
