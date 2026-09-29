@@ -3,11 +3,16 @@
 # 用法:
 #   bash convert_intents_model.sh                # 默认 intents -> models/intents_onnx
 #   bash convert_intents_model.sh vision_gate    # -> models/vision_gate_onnx
+#   CONDA_ENV=bert_train bash convert_intents_model.sh vision_gate
+#       # person_id 机: optimum/torch 装在 bert_train env(bert_classify 只有 CPU 服务最小集)
+# 注意: 会先删掉 models/<dataset>_onnx 再导出; 在线服务已把模型读进内存不受影响,
+# 但要保留回滚点就先把旧目录改名(如 vision_gate_onnx_v4_20260826)。
 # 切到项目根目录，保证下面的相对路径正确
 cd "$(dirname "$0")/../.." || exit 1
 set -e
 
 DATASET="${1:-intents}"
+CONDA_ENV="${CONDA_ENV:-bert_classify}"
 
 # 自动选取 output/<dataset>/ 下最新的一个训练产物目录
 MODEL_DIR=$(ls -dt output/${DATASET}/model_* 2>/dev/null | head -1)
@@ -20,7 +25,7 @@ ONNX_DIR=models/${DATASET}_onnx
 echo "导出模型: $MODEL_DIR -> $ONNX_DIR"
 
 rm -rf "$ONNX_DIR"
-conda run -n bert_classify --no-capture-output \
+conda run -n "$CONDA_ENV" --no-capture-output \
   optimum-cli export onnx \
     --model "$MODEL_DIR" \
     --optimize O3 \

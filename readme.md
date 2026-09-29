@@ -45,11 +45,13 @@ v4 起输入支持双句格式(本轮 query + 上一轮对话, 做"他能长多�
 
 ```bash
 # 1. 同步本仓库到服务机(models/ 与 output/ 不入 git, 需单独同步或现场生成)
-# 2. conda 环境: bert_classify(train/infer 通用), 依赖见 infer/infer_requirements.txt
-#    (GPU 机装 onnxruntime-gpu, infer.py 会自动优先用 CUDAExecutionProvider)
-# 3. 模型就位, 二选一:
-#    a) 现场重训: 上面的全流程命令 0~3
-#    b) 直接同步训练机上的流水线产物 models/vision_gate_onnx/ 整目录
+# 2. conda 环境: bert_classify(服务用, 依赖见 infer/infer_requirements.txt; 该机只装了
+#    CPU 服务最小集, 没有 torch); 训练/导出用同机 bert_train env——
+#    conda create -n bert_train --clone bert_classify 后 pip 装
+#    torch datasets scikit-learn accelerate "optimum[onnxruntime]"(走清华源)
+# 3. 模型就位: 现场重训(上面的全流程命令 0~3, 训练与导出两步带 CONDA_ENV=bert_train;
+#    基座 hf-mirror 十几秒下完, 训练 RTX PRO 5000 上 23s)。旧产物改名留作回滚点,
+#    如 models/vision_gate_onnx_v4_20260826
 # 4. 起服务并验证(单轮与双句格式各一条)
 bash infer/script/serve_vision_gate.sh
 curl -X POST http://127.0.0.1:10004/predict -H 'Content-Type: application/json' \
@@ -58,7 +60,9 @@ curl -X POST http://127.0.0.1:10004/predict -H 'Content-Type: application/json' 
 # 期望: vision / no_vision / no_vision
 ```
 
-训完质检(只测不训的三套评测集, 在 voice_agent 仓库):
+训完质检(只测不训的三套评测集, 在 voice_agent 仓库; person_id 机没有 voice_agent
+仓库, 把 test/vision_gate/{common.py,eval_pipeline_model.py,data/} rsync 到
+~/workspace/vision_gate_eval/ 后用 bert_classify env 跑, 顺带验证服务 env 能加载新 ONNX):
 
 ```bash
 python voice_agent/test/vision_gate/eval_pipeline_model.py            # 最新训练产物
