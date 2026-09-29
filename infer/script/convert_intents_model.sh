@@ -34,4 +34,20 @@ conda run -n "$CONDA_ENV" --no-capture-output \
 
 # 训练时已把 label_map.csv 存进模型目录，随模型一并拷到 onnx 目录，部署与训练两边隔离且不错配
 cp "$MODEL_DIR/label_map.csv" "$ONNX_DIR/label_map.csv"
-echo "完成: $ONNX_DIR (含 label_map.csv)"
+# 模型身份卡 model_info.json: 训练侧 train_info.json(数据集/基座/语料量/训练时刻) + 来源目录与
+# 导出时刻; 服务 /health 原样上报, 控制台「系统配置」顶部据此显示模型版本(= 来源目录的时间戳)
+# (conda run 不透传 stdin, 代码经 -c 传入)
+conda run -n "$CONDA_ENV" --no-capture-output python -c "$(cat <<'EOF'
+import json, sys, os, datetime
+src, dst = sys.argv[1], sys.argv[2]
+info = {}
+p = os.path.join(src, "train_info.json")
+if os.path.exists(p):
+    info = json.load(open(p, encoding="utf-8"))
+info.update(source_model=os.path.basename(src.rstrip("/")),
+            exported_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+json.dump(info, open(os.path.join(dst, "model_info.json"), "w", encoding="utf-8"),
+          ensure_ascii=False, indent=2)
+EOF
+)" "$MODEL_DIR" "$ONNX_DIR"
+echo "完成: $ONNX_DIR (含 label_map.csv / model_info.json)"

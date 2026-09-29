@@ -178,6 +178,18 @@ if __name__ == '__main__':
     # 把该数据集的 label_map 一并存入模型目录：模型自带标签映射，
     # 部署时随模型一起拷贝到 infer/，两边隔离且永不错配
     shutil.copy(label_map_file, output_dir / "label_map.csv")
+    # 训练身份卡: convert 脚本合并进 ONNX 目录的 model_info.json, 服务 /health 原样上报,
+    # 控制台按它展示"这个端口跑的是哪次训练、多少语料"
+    import json
+    (output_dir / "train_info.json").write_text(json.dumps({
+        "dataset": dataset,
+        "base_model": Path(model_name_or_path).name,
+        "trained_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "epochs": epochs, "lr": lr, "batch_size": batch_size, "max_length": max_length,
+        "train_samples": total,
+        "label_counts": {id2label[i]: label_counts[i] for i in range(num_labels)},
+        "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu",
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # 评测报告统一由 eval_report 生成：整体 eval_loss/accuracy/f1 +
     # loss 最大的前 TOP_K 条样本概率 + 逐样本明细 eval_details.csv，便于跨版本对比

@@ -49,7 +49,8 @@ mkdir -p "$(dirname "$LOG")"
 # --timeout-keep-alive 300: 分类服务在对话首字延迟的关键路径上, 闲置连接保得久一点,
 # 配合 agent_server 侧客户端的常驻连接池(keepalive 不过期), 避免每轮对话重付 TCP 握手
 # (uvicorn 默认 5s, 而对话轮距几乎总超 5s)。取舍详见 voice_agent/docs/09-latency-keepalive.md。
-MODEL_DIR="$MODEL_DIR" nohup conda run -n bert_classify --no-capture-output \
+# PORT 也传进进程环境: infer.py 的 /health 把监听端口报给控制台
+MODEL_DIR="$MODEL_DIR" PORT="$PORT" nohup conda run -n bert_classify --no-capture-output \
   uvicorn infer:app --app-dir infer --host 0.0.0.0 --port "$PORT" --workers 4 \
   --timeout-keep-alive 300 \
   > "$LOG" 2>&1 &

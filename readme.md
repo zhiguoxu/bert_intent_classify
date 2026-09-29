@@ -58,6 +58,12 @@ curl -X POST http://127.0.0.1:10004/predict -H 'Content-Type: application/json' 
   -d '{"texts": ["看看这是什么", "明天天气怎么样", "本轮:他能长多高？ 上轮问:长颈鹿的食物 上轮答:长颈鹿爱吃金合欢叶。"]}'
 # 返回 logits, argmax: 0=no_vision 1=vision(见 models/vision_gate_onnx/label_map.csv)
 # 期望: vision / no_vision / no_vision
+curl http://127.0.0.1:10004/health
+# {"status":"healthy", "model_dir":…, "model_version":"20260929-165448", "labels":{…},
+#  "started_at":…, "port":10004, "model_info":{…}}: 模型身份来自 ONNX 目录里的
+#  model_info.json(convert 脚本随导出写入, 版本号 = 训练产物目录的时间戳; 没有该文件时退化为
+#  model.onnx 修改时间)。agent_server 的 GET /api/agent/vision_gate/status 转出这些字段,
+#  web 控制台「系统配置」顶部状态条展示。
 ```
 
 训完质检(只测不训的三套评测集, 在 voice_agent 仓库; person_id 机没有 voice_agent

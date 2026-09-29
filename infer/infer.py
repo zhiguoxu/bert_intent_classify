@@ -1,4 +1,7 @@
+import csv
+import json
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List
 from contextlib import asynccontextmanager
@@ -7,6 +10,39 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 import onnxruntime as ort
 from transformers import BertTokenizerFast
+
+# 时间字段统一给 naive 北京时间字面量(与 voice_agent 各服务 started_at 口径一致)
+_CST = timezone(timedelta(hours=8))
+
+
+def _cst_str(ts: float | None = None) -> str:
+    dt = datetime.fromtimestamp(ts, _CST) if ts is not None else datetime.now(_CST)
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _model_meta(model_dir: str, model_path: str) -> dict:
+    """/health 里报告的模型身份: 目录、版本(model_info.json 由 convert 脚本随导出写入,
+    没有则退化为 model.onnx 的修改时间)、标签表。"""
+    info = {}
+    info_path = os.path.join(model_dir, "model_info.json")
+    if os.path.exists(info_path):
+        with open(info_path, encoding="utf-8") as f:
+            info = json.load(f)
+    labels = {}
+    lm_path = os.path.join(model_dir, "label_map.csv")
+    if os.path.exists(lm_path):
+        with open(lm_path, encoding="utf-8") as f:
+            labels = {row["label"]: row["category"] for row in csv.DictReader(f)}
+    mtime = _cst_str(os.path.getmtime(model_path))
+    # source_model 是训练产物目录名 model_<时间戳>, 去掉前缀就是版本号
+    version = str(info.get("source_model", "")).removeprefix("model_") or f"mtime {mtime}"
+    return {
+        "model_dir": os.path.relpath(model_dir, Path(__file__).resolve().parent.parent),
+        "model_version": version,
+        "model_mtime": mtime,
+        "model_info": info,
+        "labels": labels,
+    }
 
 
 # 定义请求与响应格式 (Pydantic V2)
@@ -59,6 +95,13 @@ async def lifespan(app: FastAPI):
     # 暂存到全局资源字典
     model_resource["tokenizer"] = tokenizer
     model_resource["session"] = session
+    # /health 的身份信息一次算好: 多 worker 时各进程启动时刻略有差异, 取本进程的即可
+    model_resource["meta"] = {
+        **_model_meta(model_dir, model_path),
+        "providers": session.get_providers(),
+        "started_at": _cst_str(),
+        "port": int(os.environ["PORT"]) if os.environ.get("PORT", "").isdigit() else None,
+    }
 
     yield
     # 服务关闭时清理资源
@@ -105,7 +148,9 @@ async def predict(request: InferenceRequest):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """保活探针 + 服务身份: status 之外附带模型目录/版本/标签表/启动时刻/端口,
+    供 agent_server 转给 web 控制台「系统配置」页展示(调用方只认 status 字段也不受影响)。"""
+    return {"status": "healthy", **model_resource.get("meta", {})}
 
 
 """
